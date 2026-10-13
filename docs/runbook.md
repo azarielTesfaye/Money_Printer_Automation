@@ -17,11 +17,19 @@ set MP_LOG_LEVEL=INFO
 ## Backtest
 
 ```bash
-money-printer backtest --strategy sma --symbol DEMO --csv data/sample_ohlcv.csv
-money-printer backtest --strategy rsi --dry-run
+python -m money_printer backtest --strategy sma --symbol DEMO --csv data/sample_ohlcv.csv
+python -m money_printer backtest --strategy macd --analytics
+python -m money_printer backtest --strategy momentum --sizer vol --sizer-param target_vol=0.12
+python -m money_printer backtest --strategy rsi --dry-run
 ```
 
-Reports land in `reports/` as JSON + Markdown. Fills append to the profile journal SQLite DB.
+Reports land in `reports/` as JSON + Markdown. With `--analytics`, reports include Sortino, Calmar, underwater stats, monthly returns, and trade attribution.
+
+## Walk-forward
+
+```bash
+python -m money_printer walkforward --strategy bollinger --train-bars 40 --test-bars 20 --step-bars 20
+```
 
 ## Kill switch
 
@@ -30,14 +38,21 @@ Create `data/STOP` (path from config) to block new entries. Remove the file to r
 ## Daemon
 
 ```bash
-money-printer daemon --strategy sma --csv data/sample_ohlcv.csv --dry-run
+python -m money_printer daemon --strategy sma --csv data/sample_ohlcv.csv --dry-run
 ```
 
 Ctrl+C exits cleanly. Health is written to `data/health.json`.
 
-## Risk knobs
+## Risk & sizing knobs
 
-- `max_position_pct` — fraction of equity per new buy  
+- `max_position_pct` — default fixed-fraction budget when no custom sizer is passed  
 - `max_open_positions` — concurrent symbols  
 - `max_daily_loss_pct` — blocks new risk after drawdown from day start  
 - `slippage_bps` / `commission_per_fill` — paper realism  
+- CLI `--sizer fixed|vol|atr|kelly` with `--sizer-param key=value`
+
+## Coverage
+
+```bash
+pytest -q --cov=money_printer --cov-report=term-missing
+```

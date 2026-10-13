@@ -16,3 +16,7 @@ reports/*.json
 reports/*.md
 !data/.gitkeep
 !reports/.gitkeep
+
+.coverage
+htmlcov/
+
