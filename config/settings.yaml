@@ -43,3 +43,38 @@ strategies:
     period: 14
     oversold: 30.0
     overbought: 70.0
+  macd:
+    fast: 12
+    slow: 26
+    signal: 9
+  bollinger:
+    window: 20
+    num_std: 2.0
+  momentum:
+    lookback: 10
+    entry_threshold: 0.03
+    exit_threshold: 0.0
+  atr_breakout:
+    channel: 20
+    atr_period: 14
+    atr_mult: 1.5
+
+sizing:
+  default: fixed
+  fixed:
+    fraction: 0.2
+  vol:
+    target_vol: 0.15
+    lookback: 20
+    max_fraction: 0.35
+  atr:
+    risk_pct: 0.01
+    atr_period: 14
+    atr_stop_mult: 2.0
+    max_fraction: 0.3
+  kelly:
+    win_rate: 0.55
+    avg_win: 1.0
+    avg_loss: 1.0
+    fraction_of_kelly: 0.5
+    max_fraction: 0.25
