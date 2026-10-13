@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Money Printer Automation</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #9aa8bc;
+      --accent: #3d9cf0;
+      --ok: #3ecf8e;
+      --bad: #f07178;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1b2a40, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid #243247;
+    }
+    h1 { margin: 0 0 .25rem; font-size: 1.4rem; letter-spacing: .02em; }
+    p { margin: 0; color: var(--muted); }
+    main {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      padding: 1.25rem 2rem 2rem;
+    }
+    .card {
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid #2a3b55;
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 { margin: 0 0 .75rem; font-size: 0.95rem; color: var(--muted); font-weight: 600; }
+    button, select, input {
+      background: #102033;
+      color: var(--text);
+      border: 1px solid #314860;
+      border-radius: 8px;
+      padding: .45rem .65rem;
+      margin: .2rem .2rem .2rem 0;
+    }
+    button {
+      background: linear-gradient(180deg, #3d9cf0, #2b7fc7);
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    pre {
+      background: #0b111a;
+      border-radius: 8px;
+      padding: .75rem;
+      overflow: auto;
+      max-height: 260px;
+      font-size: .78rem;
+      color: #d5deea;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+    .pill { display: inline-block; padding: .15rem .5rem; border-radius: 999px; background: #22344d; color: var(--ok); font-size: .75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Money Printer Automation</h1>
+    <p>Operator dashboard — backtests, OMS orders, account health</p>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Health</h2>
+      <div class="row"><span id="healthPill" class="pill">checking…</span></div>
+      <pre id="health">{}</pre>
+      <button onclick="refreshHealth()">Refresh</button>
+    </section>
+    <section class="card">
+      <h2>Run backtest</h2>
+      <div class="row">
+        <select id="strategy"></select>
+        <input id="symbol" value="DEMO" />
+        <label><input type="checkbox" id="analytics" /> analytics</label>
+      </div>
+      <button onclick="runBacktest()">Run</button>
+      <pre id="backtestOut">{}</pre>
+    </section>
+    <section class="card">
+      <h2>Place paper order</h2>
+      <div class="row">
+        <input id="oSymbol" value="DEMO" />
+        <select id="oSide"><option>buy</option><option>sell</option></select>
+        <input id="oQty" type="number" value="10" step="1" />
+        <input id="oPrice" type="number" value="100" step="0.01" />
+      </div>
+      <button onclick="placeOrder()">Submit</button>
+      <pre id="orderOut">{}</pre>
+    </section>
+    <section class="card">
+      <h2>Recent runs</h2>
+      <button onclick="loadRuns()">Load</button>
+      <pre id="runs">[]</pre>
+    </section>
+    <section class="card">
+      <h2>Orders</h2>
+      <button onclick="loadOrders()">Load</button>
+      <pre id="orders">[]</pre>
+    </section>
+    <section class="card">
+      <h2>Account</h2>
+      <button onclick="loadAccount()">Load</button>
+      <pre id="account">{}</pre>
+    </section>
+  </main>
+  <script>
+    async function j(url, opts) {
+      const res = await fetch(url, opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+      return data;
+    }
+    function show(id, data) { document.getElementById(id).textContent = JSON.stringify(data, null, 2); }
+    async function refreshHealth() {
+      try {
+        const data = await j('/health');
+        show('health', data);
+        const pill = document.getElementById('healthPill');
+        pill.textContent = data.ok ? 'healthy' : 'degraded';
+        pill.style.color = data.ok ? 'var(--ok)' : 'var(--bad)';
+      } catch (e) { show('health', { error: String(e) }); }
+    }
+    async function loadStrategies() {
+      const data = await j('/strategies');
+      const sel = document.getElementById('strategy');
+      sel.innerHTML = '';
+      data.strategies.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s; opt.textContent = s; sel.appendChild(opt);
+      });
+    }
+    async function runBacktest() {
+      try {
+        const body = {
+          strategy: document.getElementById('strategy').value,
+          symbol: document.getElementById('symbol').value,
+          analytics: document.getElementById('analytics').checked,
+        };
+        const data = await j('/backtests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        show('backtestOut', data);
+        loadRuns();
+      } catch (e) { show('backtestOut', { error: String(e) }); }
+    }
+    async function placeOrder() {
+      try {
+        const body = {
+          symbol: document.getElementById('oSymbol').value,
+          side: document.getElementById('oSide').value,
+          qty: Number(document.getElementById('oQty').value),
+          mark_price: Number(document.getElementById('oPrice').value),
+        };
+        const data = await j('/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        show('orderOut', data);
+        loadOrders();
+        loadAccount();
+      } catch (e) { show('orderOut', { error: String(e) }); }
+    }
+    async function loadRuns() { try { show('runs', await j('/backtests')); } catch (e) { show('runs', { error: String(e) }); } }
+    async function loadOrders() { try { show('orders', await j('/orders')); } catch (e) { show('orders', { error: String(e) }); } }
+    async function loadAccount() { try { show('account', await j('/account')); } catch (e) { show('account', { error: String(e) }); } }
+    loadStrategies(); refreshHealth(); loadRuns(); loadOrders(); loadAccount();
+  </script>
+</body>
+</html>
