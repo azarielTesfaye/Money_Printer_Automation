@@ -115,6 +115,30 @@ def cmd_strategies(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate(args: argparse.Namespace) -> int:
+    from money_printer.storage.migrate import apply_migrations
+
+    applied = apply_migrations(args.db)
+    print(json.dumps({"db": args.db, "applied": applied}))
+    return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    from money_printer.api.app import create_app, serve_app
+
+    state = create_app(db_path=args.db, event_path=args.events, broker_name=args.broker)
+    server = serve_app(state, host=args.host, port=args.port)
+    print(f"serving on http://{args.host}:{args.port}/  (Ctrl+C to stop)")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nshutting down")
+    finally:
+        server.server_close()
+        state.close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="money-printer", description="Paper-trading automation")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -161,6 +185,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("strategies", help="List registered strategies")
     s.set_defaults(func=cmd_strategies)
+
+    m = sub.add_parser("migrate", help="Apply SQLite storage migrations")
+    m.add_argument("--db", default="data/app_store.db")
+    m.set_defaults(func=cmd_migrate)
+
+    serve = sub.add_parser("serve", help="Run optional HTTP API + dashboard")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--db", default="data/app_store.db")
+    serve.add_argument("--events", default="data/oms_events.db")
+    serve.add_argument("--broker", default="paper", choices=["paper", "simulated", "alpaca", "binance"])
+    serve.set_defaults(func=cmd_serve)
     return p
 
 
