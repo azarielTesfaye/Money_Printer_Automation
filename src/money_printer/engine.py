@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from money_printer.analytics.performance import analyze_performance
 from money_printer.config import ProfileSettings
 from money_printer.data.base import MarketDataProvider
 from money_printer.execution import PaperExecutor
@@ -11,6 +12,7 @@ from money_printer.journal import TradeJournal
 from money_printer.metrics import summarize
 from money_printer.portfolio import Portfolio
 from money_printer.risk import RiskGate
+from money_printer.sizing import PositionSizer
 from money_printer.strategies.base import Strategy
 
 
@@ -22,15 +24,18 @@ class BacktestEngine:
         provider: MarketDataProvider,
         dry_run: bool = False,
         journal: TradeJournal | None = None,
+        sizer: PositionSizer | None = None,
+        rich_analytics: bool = False,
     ) -> None:
         self.settings = settings
         self.strategy = strategy
         self.provider = provider
         self.dry_run = dry_run
         self.journal = journal
+        self.rich_analytics = rich_analytics
         self.portfolio = Portfolio(settings.starting_cash)
         self.risk = RiskGate(settings)
-        self.executor = PaperExecutor(settings, self.risk, dry_run=dry_run)
+        self.executor = PaperExecutor(settings, self.risk, dry_run=dry_run, sizer=sizer)
 
     def run(self, symbol: str, start: datetime | None = None, end: datetime | None = None) -> dict:
         bars = self.provider.history(symbol, start=start, end=end)
@@ -46,7 +51,14 @@ class BacktestEngine:
             prices = {bar.symbol: bar.close}
             equity = self.portfolio.mark_to_market(prices, bar.ts)
             if signal is not None:
-                fill = self.executor.execute(signal, self.portfolio, bar.close, equity, ts=bar.ts)
+                fill = self.executor.execute(
+                    signal,
+                    self.portfolio,
+                    bar.close,
+                    equity,
+                    ts=bar.ts,
+                    history=history + [bar],
+                )
                 if fill and self.journal is not None:
                     self.journal.append(fill)
             history.append(bar)
@@ -55,6 +67,13 @@ class BacktestEngine:
         report["symbol"] = symbol
         report["strategy"] = self.strategy.name
         report["dry_run"] = self.dry_run
+        if self.rich_analytics:
+            perf = analyze_performance(
+                self.portfolio.equity_curve,
+                self.portfolio.fills,
+                self.settings.starting_cash,
+            )
+            report["analytics"] = perf.to_dict()
         return report
 
 
@@ -77,5 +96,17 @@ def write_report(report: dict, out_dir: str | Path = "reports") -> Path:
         f"- Win rate: {100 * report.get('win_rate', 0):.1f}%",
         f"- Fills: {report.get('n_fills')}",
     ]
+    analytics = report.get("analytics") or {}
+    if analytics:
+        lines.extend(
+            [
+                "",
+                "## Analytics",
+                f"- CAGR: {100 * analytics.get('cagr', 0):.2f}%",
+                f"- Sortino: {analytics.get('sortino', 0):.3f}",
+                f"- Calmar: {analytics.get('calmar', 0):.3f}",
+                f"- Volatility: {100 * analytics.get('volatility', 0):.2f}%",
+            ]
+        )
     md.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
