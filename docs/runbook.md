@@ -51,6 +51,17 @@ Ctrl+C exits cleanly. Health is written to `data/health.json`.
 - `slippage_bps` / `commission_per_fill` — paper realism  
 - CLI `--sizer fixed|vol|atr|kelly` with `--sizer-param key=value`
 
+## OMS / storage / API
+
+```bash
+python -m money_printer migrate --db data/app_store.db
+python -m money_printer serve --broker paper --port 8000
+```
+
+- OMS validates and routes orders through broker adapters without changing `BacktestEngine`
+- Storage migrations are SQLite and additive
+- Alpaca/Binance adapters default to `offline=True` (local paper/sim fills)
+
 ## Coverage
 
 ```bash

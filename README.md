@@ -27,6 +27,19 @@ python -m money_printer backtest --strategy sma --symbol DEMO --csv data/sample_
 python -m money_printer walkforward --strategy sma --train-bars 40 --test-bars 20
 ```
 
+## OMS, storage, API (optional layers)
+
+Core backtests still work with zero API deps. Optional layers:
+
+```bash
+python -m money_printer migrate --db data/app_store.db
+python -m money_printer serve --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000/` for the operator dashboard (stdlib HTTP, no FastAPI required).
+
+Offline sandbox brokers: `paper`, `simulated`, `alpaca`, `binance` (no network required by default).
+
 ## Profiles
 
 Set `MP_PROFILE` to `dev`, `paper`, or `live`. Secrets come from environment variables only.
